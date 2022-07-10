@@ -1,0 +1,112 @@
+- name: Update apt packages
+  # hosts: all
+  # user: ubuntu
+  # become: true
+  # become_method: sudo
+  # become_user: root
+  apt: 
+    update_cache: yes 
+    
+- name: Upgrade apt packages
+  become: yes
+  apt: 
+    upgrade: yes 
+
+- name: Remove unused dependencies
+  become: yes
+  apt: 
+    autoremove: yes 
+
+- name: Download prometheus 
+  unarchive: 
+    src: https://github.com/prometheus/prometheus/releases/download/v2.19.0/prometheus-2.19.0.linux-amd64.tar.gz
+    dest: /tmp
+    remote_src: yes
+
+- name: Create prometheus directories 
+  become: yes
+  shell: > 
+    mkdir -p /etc/prometheus 
+    mkdir -p /var/lib/prometheus
+    chown root:ubuntu /etc/prometheus
+    chown root:ubuntu /var/lib/prometheus
+  ignore_errors: true
+
+- name: Move 'prometheus' binary to /usr/local/bin 
+  become: yes
+  copy: 
+    src: /tmp/prometheus-2.19.0.linux-amd64/prometheus 
+    dest: /usr/local/bin/prometheus 
+    mode: '0777'
+    remote_src: yes
+
+- name: Move 'promtool' binary to /usr/local/bin 
+  become: yes 
+  copy: 
+    src: /tmp/prometheus-2.19.0.linux-amd64/promtool 
+    dest: /usr/local/bin/promtool 
+    mode: '0777'
+    remote_src: yes
+
+- name: Move console to /etc/prometheus 
+  become: yes 
+  copy: 
+    src: /tmp/prometheus-2.19.0.linux-amd64/consoles 
+    dest: /etc/prometheus/consoles 
+    mode: '0777'
+    remote_src: yes 
+
+- name: Move console_libraries to /etc/prometheus 
+  become: yes 
+  copy: 
+    src: /tmp/prometheus-2.19.0.linux-amd64/console_libraries
+    dest: /etc/prometheus/console_libraries
+    mode: '0777'
+    remote_src: yes 
+
+- name: Create prometheus.yml file 
+  become: yes
+  copy: 
+    dest: /etc/prometheus/prometheus.yml 
+    content: |
+      global:
+        scrape_interval: 15s
+
+      scrape_configs:
+      - job_name: 'prometheus'
+        scrape_interval: 5s
+        static_configs:
+          - targets: ['localhost:9090']
+
+- name: Grant Prometheus.yml file ownership
+  shell: >
+    chown root:ubuntu /etc/prometheus/prometheus.yml
+
+- name: Create prometheus service configuration 
+  become: yes
+  copy: 
+    #src: prometheus.service 
+    dest: /etc/systemd/system/prometheus.service 
+    content: |
+      [Unit]
+      Description=Prometheus
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      Type=simple
+      ExecStart=/usr/local/bin/prometheus -config.file /etc/prometheus/prometheus.yml \
+          -storage.local.path /var/lib/prometheus/
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Start the prometheus service 
+  become: yes
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: prometheus
+    enabled: yes

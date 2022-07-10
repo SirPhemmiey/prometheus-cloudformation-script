@@ -1,0 +1,8 @@
+ - name: Simple Ansible playbook to install prometheus on EC2
+   hosts: all
+   user: ubuntu
+   become: true
+   become_method: sudo
+   become_user: root
+   roles: 
+    - prometheus

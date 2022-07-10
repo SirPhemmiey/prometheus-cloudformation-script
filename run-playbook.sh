@@ -1,0 +1,1 @@
+ansible-playbook -i inventory --private-key $1 $2
